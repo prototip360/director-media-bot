@@ -22,13 +22,18 @@ def make_bold(text: str) -> str:
 
 @dp.message()
 async def handle_media_messages(message: types.Message):
+    # Проверяем тег
     if message.sender_tag != TARGET_TAG:
         return
 
+    # Игнорируем текст (его обрабатывает первый бот)
     if message.text:
         return
 
     logger.info(f"Получено медиа: {message.content_type}")
+
+    # Определяем ID темы (если сообщение из темы)
+    thread_id = message.message_thread_id
 
     try:
         # Формируем подпись: полужирная пометка + полужирный оригинальный текст
@@ -49,9 +54,10 @@ async def handle_media_messages(message: types.Message):
                 chat_id=message.chat.id,
                 photo=photo.file_id,
                 caption=final_caption,
+                message_thread_id=thread_id,
                 parse_mode="HTML"
             )
-            logger.info("Фото отправлено с полужирной подписью")
+            logger.info(f"Фото отправлено в тему {thread_id or 'основную'}")
         
         # Видео
         elif message.video:
@@ -59,9 +65,10 @@ async def handle_media_messages(message: types.Message):
                 chat_id=message.chat.id,
                 video=message.video.file_id,
                 caption=final_caption,
+                message_thread_id=thread_id,
                 parse_mode="HTML"
             )
-            logger.info("Видео отправлено с полужирной подписью")
+            logger.info(f"Видео отправлено в тему {thread_id or 'основную'}")
         
         # Документ (файл)
         elif message.document:
@@ -69,35 +76,39 @@ async def handle_media_messages(message: types.Message):
                 chat_id=message.chat.id,
                 document=message.document.file_id,
                 caption=final_caption,
+                message_thread_id=thread_id,
                 parse_mode="HTML"
             )
-            logger.info("Документ отправлен с полужирной подписью")
+            logger.info(f"Документ отправлен в тему {thread_id or 'основную'}")
         
         # Голосовое (подпись не поддерживается)
         elif message.voice:
             await bot.send_voice(
                 chat_id=message.chat.id,
-                voice=message.voice.file_id
+                voice=message.voice.file_id,
+                message_thread_id=thread_id
             )
-            logger.info("Голосовое отправлено")
+            logger.info(f"Голосовое отправлено в тему {thread_id or 'основную'}")
         
         # Опрос (копируем как есть)
         elif message.poll:
             await bot.copy_message(
                 chat_id=message.chat.id,
                 from_chat_id=message.chat.id,
-                message_id=message.message_id
+                message_id=message.message_id,
+                message_thread_id=thread_id
             )
-            logger.info("Опрос скопирован")
+            logger.info(f"Опрос скопирован в тему {thread_id or 'основную'}")
         
         # Все остальные типы — копируем как есть
         else:
             await bot.copy_message(
                 chat_id=message.chat.id,
                 from_chat_id=message.chat.id,
-                message_id=message.message_id
+                message_id=message.message_id,
+                message_thread_id=thread_id
             )
-            logger.info("Медиа скопировано")
+            logger.info(f"Медиа скопировано в тему {thread_id or 'основную'}")
         
         # Удаляем оригинал
         await message.delete()
@@ -121,8 +132,8 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", 8000)
     await site.start()
     
-    print("✅ Медиа-бот запущен")
-    print("✅ Подпись полужирная: '🎬 От Режиссёра' + оригинальный текст полужирным")
+    print("✅ Медиа-бот запущен с поддержкой тем")
+    print("✅ Отправляет ответы в ту же тему, откуда пришло сообщение")
     
     await polling_task
 
