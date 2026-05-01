@@ -21,21 +21,63 @@ async def handle_media_messages(message: types.Message):
     if message.sender_tag != TARGET_TAG:
         return
 
-    # Игнорируем текстовые сообщения (их обрабатывает первый бот)
+    # Игнорируем текст (его обрабатывает первый бот)
     if message.text:
-        logger.info("Игнорируем текст (для первого бота)")
         return
 
     logger.info(f"Получено медиа: {message.content_type}")
 
-    # Копируем медиа
     try:
-        await bot.copy_message(
-            chat_id=message.chat.id,
-            from_chat_id=message.chat.id,
-            message_id=message.message_id
-        )
-        logger.info("Медиа скопировано")
+        caption = "🎬 От Режиссёра"
+
+        # Фото
+        if message.photo:
+            photo = message.photo[-1]  # самое большое фото
+            await bot.send_photo(
+                chat_id=message.chat.id,
+                photo=photo.file_id,
+                caption=caption
+            )
+            logger.info("Фото отправлено с подписью")
+        # Видео
+        elif message.video:
+            await bot.send_video(
+                chat_id=message.chat.id,
+                video=message.video.file_id,
+                caption=caption
+            )
+            logger.info("Видео отправлено с подписью")
+        # Документ (файл)
+        elif message.document:
+            await bot.send_document(
+                chat_id=message.chat.id,
+                document=message.document.file_id,
+                caption=caption
+            )
+            logger.info("Документ отправлен с подписью")
+        # Голосовое (подпись не поддерживается)
+        elif message.voice:
+            await bot.send_voice(
+                chat_id=message.chat.id,
+                voice=message.voice.file_id
+            )
+            logger.info("Голосовое отправлено")
+        # Опрос (копируем как есть)
+        elif message.poll:
+            await bot.copy_message(
+                chat_id=message.chat.id,
+                from_chat_id=message.chat.id,
+                message_id=message.message_id
+            )
+            logger.info("Опрос скопирован")
+        # Все остальные типы — копируем как есть
+        else:
+            await bot.copy_message(
+                chat_id=message.chat.id,
+                from_chat_id=message.chat.id,
+                message_id=message.message_id
+            )
+            logger.info("Медиа скопировано")
         
         # Удаляем оригинал
         await message.delete()
@@ -59,9 +101,8 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", 8000)
     await site.start()
     
-    print("✅ Медиа-бот запущен")
-    print("✅ Обрабатывает: фото, видео, файлы, опросы")
-    print("✅ Игнорирует текстовые сообщения")
+    print("✅ Медиа-бот запущен (с подписью)")
+    print("✅ Фото, видео, файлы получают подпись: '🎬 От Режиссёра'")
     
     await polling_task
 
