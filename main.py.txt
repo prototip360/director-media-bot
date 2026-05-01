@@ -1,0 +1,69 @@
+import asyncio
+import logging
+import os
+from aiogram import Bot, Dispatcher, types
+from aiohttp import web
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+TARGET_TAG = "Режиссёр"
+
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN не найден!")
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+
+@dp.message()
+async def handle_media_messages(message: types.Message):
+    if message.sender_tag != TARGET_TAG:
+        return
+
+    # Игнорируем текстовые сообщения (их обрабатывает первый бот)
+    if message.text:
+        logger.info("Игнорируем текст (для первого бота)")
+        return
+
+    logger.info(f"Получено медиа: {message.content_type}")
+
+    # Копируем медиа
+    try:
+        await bot.copy_message(
+            chat_id=message.chat.id,
+            from_chat_id=message.chat.id,
+            message_id=message.message_id
+        )
+        logger.info("Медиа скопировано")
+        
+        # Удаляем оригинал
+        await message.delete()
+        logger.info("Оригинал удалён")
+        
+    except Exception as e:
+        logger.error(f"Ошибка: {e}")
+
+async def main():
+    polling_task = asyncio.create_task(dp.start_polling(bot))
+    
+    app = web.Application()
+    
+    async def health_check(request):
+        return web.Response(text="OK")
+    
+    app.router.add_get("/healthz", health_check)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 8000)
+    await site.start()
+    
+    print("✅ Медиа-бот запущен")
+    print("✅ Обрабатывает: фото, видео, файлы, опросы")
+    print("✅ Игнорирует текстовые сообщения")
+    
+    await polling_task
+
+if __name__ == "__main__":
+    asyncio.run(main())
